@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Servo.h>
+#include <TimerOne.h> // Include the TimerOne library
 
 enum GripperState
 {
@@ -25,6 +26,18 @@ GripperState currentState = BOOT_UP; // Initial state of the gripper
 
 int closingPosition = 45; // Position to close the gripper
 int openingPosition = 0;  // Position to open the gripper
+
+bool flag = false;
+
+// Function to be called by the timer interrupt
+void timerISR()
+{
+    pressureValue = analogRead(analogPin); // Read the analog pin
+    if (pressureValue > 900)
+    {
+        flag = true;
+    }
+}
 
 void InitGripper()
 {
@@ -86,6 +99,9 @@ void setup()
     pinMode(TRIGGER_PIN, INPUT); // Set the trigger pin as input
     Serial.begin(115200);
     InitGripper();
+    // Initialize Timer1 to call timerISR every 50 milliseconds
+    Timer1.initialize(50000);         // 50000 microseconds = 50 milliseconds
+    Timer1.attachInterrupt(timerISR); // Attach the interrupt service routine
 }
 
 void loop()
@@ -93,7 +109,6 @@ void loop()
     switch (currentState)
     {
     case BOOT_UP:
-        pressureValue = analogRead(PRESSURE_PIN);
         if (pressureValue <= pressureThreshold)
         {
             currentState = STATE_IDLE;
@@ -113,7 +128,6 @@ void loop()
     case MOVING:
         MoveToLocation(); // Example target position
 
-        pressureValue = analogRead(PRESSURE_PIN);
         if (pressureValue > pressureThreshold)
         {
             if (pickedUp)
