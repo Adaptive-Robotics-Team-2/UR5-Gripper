@@ -1,0 +1,25 @@
+ Program
+   Robot Program
+     If digital_in[4] == True 
+       MoveJ
+         Waypoint_Home
+         Set DO[4]=HI:Pulse 0.5
+     Loop digital_in[4] == True
+       If digital_in[6] == True
+         Set step_count=step_count+1
+         If step_count > 2
+           step_count≔0
+         Switch step_count
+           Case 1
+             MoveJ
+               Waypoint_Home
+               Waypoint_A
+           Case 2
+             MoveJ
+               Waypoint_Home
+               Waypoint_B
+         Set DO[4]=HI:Pulse 0.5
+     MoveJ
+       Waypoint_A
+       Set DO[6]=HI:Pulse 0.5
+       Halt

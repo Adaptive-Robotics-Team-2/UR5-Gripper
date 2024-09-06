@@ -1,0 +1,88 @@
+def groep3_robot_arm():
+  set_gravity([0.0, 0.0, 9.82])
+  set_standard_analog_input_domain(0, 1)
+  set_standard_analog_input_domain(1, 1)
+  set_tool_analog_input_domain(0, 1)
+  set_tool_analog_input_domain(1, 1)
+  set_analog_outputdomain(0, 0)
+  set_analog_outputdomain(1, 0)
+  set_input_actions_to_default()
+  set_tool_voltage(0)
+  set_safety_mode_transition_hardness(1)
+  step_count_3b274dda_36d6_4f20_ad04_15a7ee3bfa3e = 0.0
+  thread Step_Counter_Thread_af28ca49_4364_4c12_b92e_ccbfccf72917():
+    while (True):
+      step_count_3b274dda_36d6_4f20_ad04_15a7ee3bfa3e = step_count_3b274dda_36d6_4f20_ad04_15a7ee3bfa3e + 1.0
+      sync()
+    end
+  end
+  run Step_Counter_Thread_af28ca49_4364_4c12_b92e_ccbfccf72917()
+  set_tcp(p[0.0,0.0,0.0,0.0,0.0,0.0])
+  set_payload(0.15)
+  global step_count=1
+  while (True):
+    $ 1 "Robot Program"
+    $ 2 "If digital_in[4] == True "
+    if (get_standard_digital_in(4) ==  True  ):
+      $ 3 "MoveJ"
+      $ 4 "Waypoint_Home" "breakAfter"
+      movej(get_inverse_kin(p[-.220525238630, -.437320669884, .429886672244, -1.040164913393, -2.899086902810, .092992564040], qnear=[0.8810716271400452, -1.6061857382403772, 1.6280345916748047, -1.669555966054098, -1.5984638373004358, 1.5579492901451886E-4]), a=1.3962634015954636, v=1.0471975511965976)
+      $ 5 "Set DO[4]=HI:Pulse 0.5"
+      thread SinglePulse0():
+        set_standard_digital_out(4, True)
+        sleep(0.5)
+        set_standard_digital_out(4, False)
+      end
+      singlePulse0 = run SinglePulse0()
+    end
+    $ 6 "Loop digital_in[4] == True"
+    while (get_standard_digital_in(4) == True):
+      $ 7 "If digital_in[6] == True"
+      if (get_standard_digital_in(6) == True):
+        $ 8 "Set step_count=step_count+1"
+        step_count = step_count + 1
+        $ 9 "If step_count > 2"
+        if (step_count > 2):
+          $ 10 "step_count≔0"
+          global step_count=0
+        end
+        $ 11 "Switch step_count"
+        switch_1 = step_count
+        $ 12 "Case 1"
+        if (1 == switch_1):
+          $ 13 "MoveJ"
+          $ 14 "Waypoint_Home" "breakAfter"
+          movej(get_inverse_kin(p[-.220525238630, -.437320669884, .429886672244, -1.040164913393, -2.899086902810, .092992564040], qnear=[0.8810716271400452, -1.6061857382403772, 1.6280345916748047, -1.669555966054098, -1.5984638373004358, 1.5579492901451886E-4]), a=1.3962634015954636, v=1.0471975511965976)
+          $ 15 "Waypoint_A" "breakAfter"
+          movej(get_inverse_kin(p[-.439036954759, -.740016960040, .170000000000, -1.007353201934, -2.946630092944, -.045679608853], qnear=[0.9115339380742693, -0.5102125119145313, 0.6192501961302979, -1.66088251846723, -1.6060248496936325, -1.0779429401708285E-4]), a=1.3962634015954636, v=1.0471975511965976)
+        elif (2 == switch_1):
+          $ 16 "Case 2"
+          $ 17 "MoveJ"
+          $ 18 "Waypoint_Home" "breakAfter"
+          movej(get_inverse_kin(p[-.220525238630, -.437320669884, .429886672244, -1.040164913393, -2.899086902810, .092992564040], qnear=[0.8810716271400452, -1.6061857382403772, 1.6280345916748047, -1.669555966054098, -1.5984638373004358, 1.5579492901451886E-4]), a=1.3962634015954636, v=1.0471975511965976)
+          $ 19 "Waypoint_B" "breakAfter"
+          movej(get_inverse_kin(p[.197078463701, -.860500818460, .181620873328, .161249208472, -3.103184529207, .040031318189], qnear=[1.672442078590393, -0.4249947706805628, 0.43017148971557617, -1.5997384230243128, -1.5984161535846155, 1.4381069922819734E-4]), a=1.3962634015954636, v=1.0471975511965976)
+        end
+        $ 20 "Set DO[4]=HI:Pulse 0.5"
+        thread SinglePulse1():
+          set_standard_digital_out(4, True)
+          sleep(0.5)
+          set_standard_digital_out(4, False)
+        end
+        singlePulse1 = run SinglePulse1()
+      end
+    end
+    $ 21 "MoveJ"
+    $ 22 "Waypoint_A" "breakAfter"
+    movej(get_inverse_kin(p[-.439036954759, -.740016960040, .170000000000, -1.007353201934, -2.946630092944, -.045679608853], qnear=[0.9115339380742693, -0.5102125119145313, 0.6192501961302979, -1.66088251846723, -1.6060248496936325, -1.0779429401708285E-4]), a=1.3962634015954636, v=1.0471975511965976)
+    $ 23 "Set DO[6]=HI:Pulse 0.5"
+    thread SinglePulse2():
+      set_standard_digital_out(6, True)
+      sleep(0.5)
+      set_standard_digital_out(6, False)
+    end
+    singlePulse2 = run SinglePulse2()
+    $ 24 "Halt"
+    halt
+  end
+end
