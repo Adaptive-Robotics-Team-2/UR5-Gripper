@@ -24,12 +24,12 @@
 #pragma region PinDefinitionsUR5
 
 // define the arduino pins
-#define BOOT_PIN 1
-#define TRIG_PIN 6
+// #define BOOT_PIN 6 // 4 on UR5
+#define TRIG_PIN 8 // 6 on UR5
 
 // define the UR5 pins
-#define ECHO_CLOSE_PIN 3
-#define ECHO_PIN 5
+#define ECHO_PIN 4          // 6 on UR5
+#define ECHO_FINISHED_PIN 3 // 5 on UR5
 
 #pragma endregion
 
@@ -85,7 +85,7 @@ GripperState currentGripperState = BOOT;
 #pragma endregion
 
 bool programIsRunning = false;
-
+bool interruptOccurred = false;
 // function prototypes
 bool sendPulse(int pin);
 int readPulse(int pin);
@@ -116,8 +116,8 @@ void closeGripper();
 #pragma region InitFunctions
 void initControlPins()
 {
-    pinMode(BOOT_PIN, OUTPUT);
-    pinMode(ECHO_CLOSE_PIN, INPUT);
+    // pinMode(BOOT_PIN, OUTPUT);
+    pinMode(ECHO_FINISHED_PIN, INPUT);
 
     pinMode(TRIG_PIN, OUTPUT);
     pinMode(ECHO_PIN, INPUT);
@@ -139,7 +139,7 @@ void initGripper()
     for (int position = 0; position <= 110; position += 5)
     {
         gripperServo.write(position);
-        delay(100); // Wait for the servo to reach the position
+        delay(10); // Wait for the servo to reach the position
 
         // Debug
         if (currentPressureValue > pressureMaximumThreshold)
@@ -185,14 +185,30 @@ bool sendPulse(int pin)
 
     Serial.print("Waiting for response on pin ");
     Serial.println(ECHO_PIN);
+    // delay(100);
+    // digitalWrite(pin, LOW); // Set the pin low again
     // Wait for response on pin ECHO_PIN
     while (readPulse(ECHO_PIN) != HIGH)
     {
+        // Check if the interrupt has occurred
+        if (interruptOccurred)
+        {
+            // Reset the shared variable
+            interruptOccurred = false;
+
+            // Transition to the STOP state
+            currentGripperState = STOP;
+            return false; // Indicate that the function was interrupted
+        }
     }
+    digitalWrite(pin, LOW); // Set the pin low again
+    Serial.print("Pin ");
+    Serial.print(pin);
+    Serial.println(" set LOW");
+
     Serial.print("Response received on pin ");
     Serial.println(ECHO_PIN);
-    
-    digitalWrite(pin, LOW); // Set the pin low again
+
     // Return true when pin 2 is high
     return true;
 }
@@ -208,7 +224,7 @@ void openGripper()
     while (currentPosition > openPosition)
     {
         currentPosition -= 5;
-        gripperServo.write(currentPosition);
+        // gripperServo.write(currentPosition);
         delay(50);
         currentPressureValue = analogRead(PRESSURE_PIN);
         if (currentPressureValue >= pressureMaximumThreshold)
@@ -236,8 +252,8 @@ void closeGripper()
     while (currentPressureValue <= pressureGripThreshold && currentPosition < 120)
     { // Allow movement up to 120 degrees
         currentPosition += 10;
-        gripperServo.write(currentPosition);
-        delay(100);
+        // gripperServo.write(currentPosition);
+        delay(10);
 
         currentPressureValue = analogRead(PRESSURE_PIN);
         if (currentPressureValue >= pressureMaximumThreshold)
@@ -255,6 +271,13 @@ void closeGripper()
     gripperIsOpen = false;
 }
 
+void interruptHandler()
+{
+    currentGripperState = STOP;
+    interruptOccurred = true;
+    Serial.println("UR5 has arrived at its destination");
+}
+
 void setup()
 {
     Serial.begin(9600);
@@ -263,27 +286,28 @@ void setup()
     // initGripper();
     // initPressureSensorInterrupt();
     Serial.println("Setup complete...");
+
+    attachInterrupt(digitalPinToInterrupt(ECHO_FINISHED_PIN), interruptHandler, RISING);
 }
 
 void loop()
 {
     buttonState = digitalRead(BOOT_BUTTON);
 
-    if (buttonState == HIGH && programIsRunning == false)
+    if (buttonState == 99 && programIsRunning == false)
     {
         Serial.println("Booting up the robot again");
         currentGripperState = BOOT;
     }
-    else if (buttonState == HIGH && programIsRunning == true)
+    else if (buttonState == 99 && programIsRunning == true)
     {
         Serial.println("Stopping the robot");
         currentGripperState = STOP;
     }
 
     // when the robot is done with all its steps, it will stop and wait for the button to be pressed
-    if (readPulse(ECHO_CLOSE_PIN) == HIGH)
+    if (readPulse(ECHO_FINISHED_PIN) == HIGH)
     {
-        Serial.println("Robot is done with all its steps, waiting for the button to be pressed to rerstart the program");
         currentGripperState = STOP;
     }
 
@@ -291,17 +315,17 @@ void loop()
     {
     case BOOT:
         // send a pulse to the boot pin
-        Serial.println("Booting up the robot");
+        Serial.println("\nBooting up the robot");
 
         // UR5 should send messege when it is ready to use (at its starting position)
-        if (sendPulse(BOOT_PIN))
+        if (sendPulse(TRIG_PIN))
         {
             programIsRunning = true;
             currentGripperState = GRIPPER_IDLE_MOVING_UR5;
             break;
         }
     case GRIPPER_IDLE_MOVING_UR5:
-        Serial.println("Gripper is idle");
+        Serial.println("\nGripper is idle");
 
         // Send pulse so the UR5 moves to its next location.
         // UR5 sends message back when it arrives
@@ -314,14 +338,17 @@ void loop()
         }
 
     case MOVE_GRIPPERS:
+        Serial.println("\nMoving grippers");
         // based on the gripper currentGripperState, open or close the gripper
         if (!gripperIsOpen)
         {
-            // openGripper();
+            Serial.println("Opening Grippers...");
+            openGripper();
         }
         else
         {
-            // closeGripper();
+            Serial.println("Closing Grippers...");
+            closeGripper();
         }
         currentGripperState = GRIPPER_IDLE_MOVING_UR5;
         break;
@@ -329,8 +356,12 @@ void loop()
         // stop the robot
         if (programIsRunning)
         {
-            Serial.print("Stopping the robot");
-            digitalWrite(BOOT_PIN, LOW); // turn of the boot pin
+            Serial.println("\nStopping the robot");
+
+            Serial.println("Waiting for the button to be pressed to rerstart the program");
+
+            // digitalWrite(BOOT_PIN, LOW); // turn of the boot pin
+            digitalWrite(TRIG_PIN, LOW); // turn of the trigger pin
             programIsRunning = false;
             // gripperServo.detach();
             // pinMode(servoPin, OUTPUT);
