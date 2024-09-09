@@ -1,204 +1,346 @@
 #include <Arduino.h>
 #include <Servo.h>
-#include "Adafruit_ZeroTimer.h"
+// #include "Adafruit_ZeroTimer.h"
 
 #pragma region TimerVariables
 
-// Timer tester
-Adafruit_ZeroTimer zt3 = Adafruit_ZeroTimer(3);
+// // Timer tester
+// Adafruit_ZeroTimer zt3 = Adafruit_ZeroTimer(3);
 
-unsigned long lastInterruptTime = 0; // Store the last interrupt time
+// unsigned long lastInterruptTime = 0; // Store the last interrupt time
 
-#define INTERVAL 1000 // Interval in milliseconds
+// #define INTERVAL 300 // Interval in milliseconds
 
-// Convert interval to seconds
-float intervalSec = INTERVAL / 1000.0;
+// // Convert interval to seconds
+// float intervalSec = INTERVAL / 1000.0;
 
-// Calculate the compare value using the formula
-unsigned long compareValue = 46874 * intervalSec;
+// // Calculate the compare value using the formula
+// unsigned long compareValue = 46874 * intervalSec;
+
 #pragma endregion
+
+// Todo
+// CHeck pinout for UR5
+#pragma region PinDefinitionsUR5
+
+// define the arduino pins
+#define BOOT_PIN 1
+#define TRIG_PIN 6
+
+// define the UR5 pins
+#define ECHO_CLOSE_PIN 3
+#define ECHO_PIN 5
+
+#pragma endregion
+
+#pragma region PressureSensorDefinitions
+
+const int PRESSURE_PIN = A0; // Analog pin for pressure sensor
+
+int currentPressureValue = 0; // Variable to store pressure sensor value
+
+const int pressureDroppedThreshold = 0;   // Threshold value indicating an object is dropped
+const int pressureGripThreshold = 500;    // Threshold value indicating an object is picked up
+const int pressureMaximumThreshold = 800; // Threshold value indicating Gripper is being to agressive
+
+bool gripperIsOpen = false; // Flag to indicate if an object is picked up
+
+const int resetPin = 1;
+
+#pragma endregion
+
+#pragma region ServoDefinitions
+const int SERVO_PIN = 11; // Digital pin for servo motor
+
+Servo gripperServo; // Servo object for the gripper
+
+const int openPosition = 0; // Gripper fully open
+int currentPosition = 0;    // Current servo position, starts at 0
+int closePosition = 0;      // Variable to store the position where the object is gripped
+
+const int openingPosition = 0;  // Position to open the gripper
+const int closingPosition = 45; // Position to close the gripper
+
+#pragma endregion
+
+#pragma region ResetButtonDefinitions
+#define BOOT_BUTTON 11
+
+int buttonState = 0;
+
+#pragma endregion
+
+#pragma region StateDefinitions
 
 enum GripperState
 {
-    BOOT_UP,    // Initial state during boot-up
-    STATE_IDLE, // Idle state when not moving
-    MOVING,     // State when the gripper is moving
-    PICK_UP,    // State when picking up an object
-    DROP        // State when dropping an object
+    BOOT,
+    GRIPPER_IDLE_MOVING_UR5,
+    MOVE_GRIPPERS,
+    STOP
 };
 
-const int PRESSURE_PIN = A0; // Analog pin for pressure sensor
-const int SERVO_PIN = 11;    // Digital pin for servo motor
-const int TRIGGER_PIN = 2;   // Define the pin to trigger the idle state change
+GripperState currentGripperState = BOOT;
 
-int pressureValue = 0;                     // Variable to store pressure sensor value
-const int pressureDroppedThreshold = 0;    // Threshold value indicating an object is dropped
-const int pressureThreshold = 300;         // Threshold value for pressure sensor
-const int pressurePickedUpThreshold = 500; // Threshold value indicating something is picked up
-bool pickedUp = false;                     // Flag to indicate if an object is picked up
+#pragma endregion
 
-Servo gripperServo;                  // Servo object for the gripper
-GripperState currentState = BOOT_UP; // Initial state of the gripper
+bool programIsRunning = false;
 
-int closingPosition = 45; // Position to close the gripper
-int openingPosition = 0;  // Position to open the gripper
+// function prototypes
+bool sendPulse(int pin);
+int readPulse(int pin);
+void initGripper();
+void initPressureSensorInterrupt();
+void initControlPins();
+void openGripper();
+void closeGripper();
 
-// Define the interrupt handler
-void TC3_Handler()
+// // Define the interrupt handler
+// void TC3_Handler()
+// {
+//     Adafruit_ZeroTimer::timerHandler(3);
+// }
+
+// // The timer 3 callback
+// void Timer3Callback0()
+// {
+//     pressureValue = analogRead(PRESSURE_PIN);
+
+//     //?Stop servo if pressure exceeds threshold
+//     if (pressureValue > pressureMaximumThreshold)
+//     {
+//         gripperServo.write(0);
+//     }
+// }
+
+#pragma region InitFunctions
+void initControlPins()
 {
-    Adafruit_ZeroTimer::timerHandler(3);
+    pinMode(BOOT_PIN, OUTPUT);
+    pinMode(ECHO_CLOSE_PIN, INPUT);
+
+    pinMode(TRIG_PIN, OUTPUT);
+    pinMode(ECHO_PIN, INPUT);
+
+    pinMode(BOOT_BUTTON, INPUT_PULLUP);
 }
 
-// The timer 3 callback
-void Timer3Callback0()
-{
-    // Get the current time in milliseconds
-    unsigned long currentTime = millis();
-
-    // Calculate the time difference since the last interrupt
-    unsigned long timeDifference = currentTime - lastInterruptTime;
-
-    // Print the time difference in milliseconds
-    Serial.print("Time between interrupts: ");
-    Serial.print(timeDifference);
-    Serial.println(" ms");
-
-    // Update the last interrupt time to the current time
-    lastInterruptTime = currentTime;
-}
-
-void InitGripper()
+void initGripper()
 {
     Serial.println("Initializing Gripper...");
     if (!gripperServo.attach(SERVO_PIN))
     {
-        Serial.println("Failed to attach servo");
+        Serial.println("Failed to attach servo, stopping the robot.");
+        currentGripperState = STOP;
         return;
     }
 
     // Move the servo from 0 to 50 degrees in steps of 5 degrees
-    for (int position = 0; position <= 50; position += 5)
+    for (int position = 0; position <= 110; position += 5)
     {
         gripperServo.write(position);
         delay(100); // Wait for the servo to reach the position
 
-        // Read the pressure sensor value
-        pressureValue = analogRead(PRESSURE_PIN);
-
-        if (pressureValue > pressureThreshold)
+        // Debug
+        if (currentPressureValue > pressureMaximumThreshold)
         {
             Serial.print("Pressure exceeded threshold at position: ");
             Serial.println(position);
-            currentState = STATE_IDLE;
+            currentGripperState = STOP;
+            break;
+        }
+    }
+    gripperServo.write(0);
+}
+
+// void initPressureSensorInterrupt()
+// {
+//     /********************* Timer #3, 16-bit, INTERVAL period */
+//     zt3.configure(TC_CLOCK_PRESCALER_DIV1024,    // prescaler
+//                   TC_COUNTER_SIZE_16BIT,         // bit width of timer/counter
+//                   TC_WAVE_GENERATION_MATCH_PWM); // match style
+
+//     // Set compare value
+//     zt3.setCompare(0, compareValue);
+
+//     // Set the callback to be triggered at the defined interval
+//     zt3.setCallback(true, TC_CALLBACK_CC_CHANNEL0, Timer3Callback0);
+
+//     // Enable the timer
+//     zt3.enable(true);
+
+//     // Initialize lastInterruptTime
+//     lastInterruptTime = millis();
+// }
+#pragma endregion
+
+// TODO add a timeout or strikecount
+bool sendPulse(int pin)
+{
+    // Set the specified pin high
+    digitalWrite(pin, HIGH);
+    Serial.print("Pin ");
+    Serial.print(pin);
+    Serial.println(" set HIGH");
+
+    Serial.print("Waiting for response on pin ");
+    Serial.println(ECHO_PIN);
+    // Wait for response on pin ECHO_PIN
+    while (readPulse(ECHO_PIN) != HIGH)
+    {
+    }
+    Serial.print("Response received on pin ");
+    Serial.println(ECHO_PIN);
+    
+    digitalWrite(pin, LOW); // Set the pin low again
+    // Return true when pin 2 is high
+    return true;
+}
+
+int readPulse(int pin)
+{
+    return digitalRead(pin);
+}
+
+void openGripper()
+{
+    Serial.println("Opening Grippers to the position where object was gripped...");
+    while (currentPosition > openPosition)
+    {
+        currentPosition -= 5;
+        gripperServo.write(currentPosition);
+        delay(50);
+        currentPressureValue = analogRead(PRESSURE_PIN);
+        if (currentPressureValue >= pressureMaximumThreshold)
+        {
+            Serial.print("ERROR");
+            Serial.println(currentPosition);
+            closePosition = currentPosition; // Store the position where the object was gripped
+            currentGripperState = STOP;
+            break;
+        }
+
+        if (currentPosition <= openPosition)
+        {
+            gripperIsOpen = true;
+            Serial.println("Gripper fully opened.");
+            break;
+        }
+    }
+    Serial.println("Gripper Open...");
+}
+
+void closeGripper()
+{
+    Serial.println("Closing Grippers...");
+    while (currentPressureValue <= pressureGripThreshold && currentPosition < 120)
+    { // Allow movement up to 120 degrees
+        currentPosition += 10;
+        gripperServo.write(currentPosition);
+        delay(100);
+
+        currentPressureValue = analogRead(PRESSURE_PIN);
+        if (currentPressureValue >= pressureMaximumThreshold)
+        {
+            Serial.print("ERROR");
+            Serial.println(currentPosition);
+            closePosition = currentPosition; // Store the position where the object was gripped
+            currentGripperState = STOP;
             break;
         }
     }
 
-    delay(1000); // Delay for initialization
-}
-
-void MoveToLocation()
-{
-    // Pin needs to be set so the UR5 can move to the target position
-}
-
-void CloseGrippers()
-{
-    Serial.println("Closing Grippers...");
-    gripperServo.write(closingPosition); // Assuming 45 degrees closes the grippers
-    if (pressureValue > pressurePickedUpThreshold)
-    {
-        pickedUp = true;
-    }
-}
-
-void OpenGrippers()
-{
-    Serial.println("Opening Grippers...");
-    gripperServo.write(openingPosition); // Assuming 0 degrees opens the grippers
-    if (pressureValue < pressureDroppedThreshold)
-    {
-        pickedUp = false;
-    }
+    //! Now when ERROR occured it whil stil print the below object grabbed
+    Serial.println("Object grabbed...");
+    gripperIsOpen = false;
 }
 
 void setup()
 {
-    pinMode(TRIGGER_PIN, INPUT); // Set the trigger pin as input
-    Serial.begin(115200);
-    InitGripper();
+    Serial.begin(9600);
 
-    /********************* Timer #3, 16-bit, INTERVAL period */
-    zt3.configure(TC_CLOCK_PRESCALER_DIV1024,    // prescaler
-                  TC_COUNTER_SIZE_16BIT,         // bit width of timer/counter
-                  TC_WAVE_GENERATION_MATCH_PWM); // match style
-
-    // Set compare value
-    zt3.setCompare(0, compareValue);
-
-    // Set the callback to be triggered at the defined interval
-    zt3.setCallback(true, TC_CALLBACK_CC_CHANNEL0, Timer3Callback0);
-
-    // Enable the timer
-    zt3.enable(true);
-
-    // Initialize lastInterruptTime
-    lastInterruptTime = millis();
+    initControlPins();
+    // initGripper();
+    // initPressureSensorInterrupt();
+    Serial.println("Setup complete...");
 }
 
 void loop()
 {
-    switch (currentState)
+    buttonState = digitalRead(BOOT_BUTTON);
+
+    if (buttonState == HIGH && programIsRunning == false)
     {
-    case BOOT_UP:
-        pressureValue = analogRead(PRESSURE_PIN);
-        if (pressureValue <= pressureThreshold)
-        {
-            currentState = STATE_IDLE;
-            Serial.println("Transition to STATE_IDLE state.");
-        }
-        break;
-
-    case STATE_IDLE:
-        // Transition to MOVING state when the trigger pin is high
-        if (digitalRead(TRIGGER_PIN) == HIGH)
-        {
-            currentState = MOVING;
-            Serial.println("Transition to MOVING state.");
-        }
-        break;
-
-    case MOVING:
-        MoveToLocation(); // Example target position
-
-        pressureValue = analogRead(PRESSURE_PIN);
-        if (pressureValue > pressureThreshold)
-        {
-            if (pickedUp)
-            {
-                currentState = DROP;
-                Serial.println("Transition to DROP state.");
-            }
-            else
-            {
-                currentState = PICK_UP;
-                Serial.println("Transition to PICK_UP state.");
-            }
-        }
-        break;
-
-    case PICK_UP:
-        CloseGrippers();
-        currentState = STATE_IDLE; // Return to STATE_STATE_IDLE after pickup
-        Serial.println("Returning to STATE_IDLE state after PICK_UP.");
-        break;
-
-    case DROP:
-        OpenGrippers();
-        currentState = STATE_IDLE; // Return to STATE_STATE_IDLE after drop
-        Serial.println("Returning to STATE_IDLE state after DROP.");
-        break;
+        Serial.println("Booting up the robot again");
+        currentGripperState = BOOT;
+    }
+    else if (buttonState == HIGH && programIsRunning == true)
+    {
+        Serial.println("Stopping the robot");
+        currentGripperState = STOP;
     }
 
-    delay(1000); // Delay between state checks
+    // when the robot is done with all its steps, it will stop and wait for the button to be pressed
+    if (readPulse(ECHO_CLOSE_PIN) == HIGH)
+    {
+        Serial.println("Robot is done with all its steps, waiting for the button to be pressed to rerstart the program");
+        currentGripperState = STOP;
+    }
+
+    switch (currentGripperState)
+    {
+    case BOOT:
+        // send a pulse to the boot pin
+        Serial.println("Booting up the robot");
+
+        // UR5 should send messege when it is ready to use (at its starting position)
+        if (sendPulse(BOOT_PIN))
+        {
+            programIsRunning = true;
+            currentGripperState = GRIPPER_IDLE_MOVING_UR5;
+            break;
+        }
+    case GRIPPER_IDLE_MOVING_UR5:
+        Serial.println("Gripper is idle");
+
+        // Send pulse so the UR5 moves to its next location.
+        // UR5 sends message back when it arrives
+        if (sendPulse(TRIG_PIN))
+        {
+            Serial.println("UR5 moved to next location");
+
+            // gripperIsOpen = !gripperIsOpen; // toggle the gripper currentGripperState when the arm is done moving
+            currentGripperState = MOVE_GRIPPERS;
+        }
+
+    case MOVE_GRIPPERS:
+        // based on the gripper currentGripperState, open or close the gripper
+        if (!gripperIsOpen)
+        {
+            // openGripper();
+        }
+        else
+        {
+            // closeGripper();
+        }
+        currentGripperState = GRIPPER_IDLE_MOVING_UR5;
+        break;
+    case STOP:
+        // stop the robot
+        if (programIsRunning)
+        {
+            Serial.print("Stopping the robot");
+            digitalWrite(BOOT_PIN, LOW); // turn of the boot pin
+            programIsRunning = false;
+            // gripperServo.detach();
+            // pinMode(servoPin, OUTPUT);
+            // digitalWrite(servoPin, 0);
+            // if (digitalRead(resetPin) == 1)
+            // {
+            //     initGripper();
+            // }
+
+            break;
+        }
+    }
 }
