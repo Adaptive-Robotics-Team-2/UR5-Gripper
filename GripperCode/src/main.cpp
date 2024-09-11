@@ -43,7 +43,7 @@ const int pressureDroppedThreshold = 0;   // Threshold value indicating an objec
 const int pressureGripThreshold = 500;    // Threshold value indicating an object is picked up
 const int pressureMaximumThreshold = 800; // Threshold value indicating Gripper is being to agressive
 
-bool gripperIsOpen = false; // Flag to indicate if an object is picked up
+bool gripperIsOpen = true; // Flag to indicate if an object is picked up
 
 const int resetPin = 1;
 
@@ -80,7 +80,7 @@ enum GripperState
     STOP
 };
 
-GripperState currentGripperState = BOOT;
+GripperState currentGripperState = MOVE_GRIPPERS;
 
 #pragma endregion
 
@@ -90,7 +90,7 @@ bool interruptOccurred = false;
 bool sendPulse(int pin);
 int readPulse(int pin);
 void initGripper();
-void initPressureSensorInterrupt();
+// void initPressureSensorInterrupt();
 void initControlPins();
 void openGripper();
 void closeGripper();
@@ -128,15 +128,17 @@ void initControlPins()
 void initGripper()
 {
     Serial.println("Initializing Gripper...");
-    if (!gripperServo.attach(SERVO_PIN))
-    {
-        Serial.println("Failed to attach servo, stopping the robot.");
-        currentGripperState = STOP;
-        return;
-    }
+    gripperServo.attach(SERVO_PIN);
+
+    // if (!gripperServo.attach(SERVO_PIN))
+    // {
+    //     Serial.println("Failed to attach servo, stopping the robot.");
+    //     currentGripperState = STOP;
+    //     return;
+    // }
 
     // Move the servo from 0 to 50 degrees in steps of 5 degrees
-    for (int position = 0; position <= 110; position += 5)
+    for (int position = 0; position <= 100; position += 5)
     {
         gripperServo.write(position);
         delay(10); // Wait for the servo to reach the position
@@ -153,25 +155,6 @@ void initGripper()
     gripperServo.write(0);
 }
 
-// void initPressureSensorInterrupt()
-// {
-//     /********************* Timer #3, 16-bit, INTERVAL period */
-//     zt3.configure(TC_CLOCK_PRESCALER_DIV1024,    // prescaler
-//                   TC_COUNTER_SIZE_16BIT,         // bit width of timer/counter
-//                   TC_WAVE_GENERATION_MATCH_PWM); // match style
-
-//     // Set compare value
-//     zt3.setCompare(0, compareValue);
-
-//     // Set the callback to be triggered at the defined interval
-//     zt3.setCallback(true, TC_CALLBACK_CC_CHANNEL0, Timer3Callback0);
-
-//     // Enable the timer
-//     zt3.enable(true);
-
-//     // Initialize lastInterruptTime
-//     lastInterruptTime = millis();
-// }
 #pragma endregion
 
 // TODO add a timeout or strikecount
@@ -194,7 +177,7 @@ bool sendPulse(int pin)
         if (interruptOccurred)
         {
             // Reset the shared variable
-            interruptOccurred = false;
+            // interruptOccurred = false;
 
             // Transition to the STOP state
             currentGripperState = STOP;
@@ -221,12 +204,19 @@ int readPulse(int pin)
 void openGripper()
 {
     Serial.println("Opening Grippers to the position where object was gripped...");
-    while (currentPosition > openPosition)
+    while (currentPosition >= openPosition)
     {
+        if (interruptOccurred)
+        {
+            break;
+            ;
+        }
         currentPosition -= 5;
-        // gripperServo.write(currentPosition);
+        gripperServo.write(currentPosition);
         delay(50);
         currentPressureValue = analogRead(PRESSURE_PIN);
+        // Serial.print("Pressure Value: ");
+        // Serial.println(currentPressureValue);
         if (currentPressureValue >= pressureMaximumThreshold)
         {
             Serial.print("ERROR");
@@ -235,27 +225,32 @@ void openGripper()
             currentGripperState = STOP;
             break;
         }
-
-        if (currentPosition <= openPosition)
-        {
-            gripperIsOpen = true;
-            Serial.println("Gripper fully opened.");
-            break;
-        }
     }
+
+    gripperIsOpen = true;
+    Serial.println("Gripper fully opened.");
+
     Serial.println("Gripper Open...");
 }
 
 void closeGripper()
 {
     Serial.println("Closing Grippers...");
-    while (currentPressureValue <= pressureGripThreshold && currentPosition < 120)
+    Serial.println(currentPosition);
+    while (currentPressureValue <= pressureGripThreshold && currentPosition < 100)
     { // Allow movement up to 120 degrees
+        if (interruptOccurred)
+        {
+            break;
+        }
         currentPosition += 10;
-        // gripperServo.write(currentPosition);
+        gripperServo.write(currentPosition);
         delay(10);
 
         currentPressureValue = analogRead(PRESSURE_PIN);
+        Serial.print("Pressure Value: ");
+        Serial.println(currentPressureValue);
+
         if (currentPressureValue >= pressureMaximumThreshold)
         {
             Serial.print("ERROR");
@@ -283,7 +278,7 @@ void setup()
     Serial.begin(9600);
 
     initControlPins();
-    // initGripper();
+    initGripper();
     // initPressureSensorInterrupt();
     Serial.println("Setup complete...");
 
@@ -293,6 +288,9 @@ void setup()
 void loop()
 {
     buttonState = digitalRead(BOOT_BUTTON);
+    currentPressureValue = analogRead(PRESSURE_PIN);
+    Serial.print("Pressure Value: ");
+    Serial.println(currentPressureValue);
 
     if (buttonState == 99 && programIsRunning == false)
     {
@@ -311,22 +309,28 @@ void loop()
         currentGripperState = STOP;
     }
 
+    Serial.println("Current gripper state: ");
+    Serial.println(currentGripperState);
     switch (currentGripperState)
     {
     case BOOT:
+        digitalWrite(TRIG_PIN, LOW);
         // send a pulse to the boot pin
         Serial.println("\nBooting up the robot");
-
+        delay(10000);
         // UR5 should send messege when it is ready to use (at its starting position)
         if (sendPulse(TRIG_PIN))
         {
             programIsRunning = true;
-            currentGripperState = GRIPPER_IDLE_MOVING_UR5;
+            currentGripperState = MOVE_GRIPPERS;
             break;
         }
     case GRIPPER_IDLE_MOVING_UR5:
         Serial.println("\nGripper is idle");
-
+        if (interruptOccurred)
+        {
+            break;
+        }
         // Send pulse so the UR5 moves to its next location.
         // UR5 sends message back when it arrives
         if (sendPulse(TRIG_PIN))
@@ -339,6 +343,12 @@ void loop()
 
     case MOVE_GRIPPERS:
         Serial.println("\nMoving grippers");
+        // gripperIsOpen = true;
+        if (interruptOccurred)
+        {
+            break;
+        }
+
         // based on the gripper currentGripperState, open or close the gripper
         if (!gripperIsOpen)
         {
