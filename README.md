@@ -1,3 +1,4 @@
 # UR5-Gripper
 
-pushing for memes
+## Arduino Code
+Arduino code can be found in GripperCode/main.cpp
