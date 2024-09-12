@@ -1,0 +1,159 @@
+def groep_pi_robot_gripper():
+  set_standard_analog_input_domain(0, 1)
+  set_standard_analog_input_domain(1, 1)
+  set_tool_analog_input_domain(0, 1)
+  set_tool_analog_input_domain(1, 1)
+  set_analog_outputdomain(0, 0)
+  set_analog_outputdomain(1, 1)
+  set_input_actions_to_default()
+  set_tcp(p[0.0,0.0,0.0,0.0,0.0,0.0])
+  set_payload(0.2, [0.0, 0.0, 0.03])
+  set_tool_voltage(24)
+  set_gravity([0.0, 0.0, 9.82])
+  set_safety_mode_transition_hardness(1)
+  step_count_20d8f110_c945_4b1b_b072_a46c30520bbc = 0.0
+  thread Step_Counter_Thread_0fc6d160_d77c_48fe_8d6a_3dcb471cd278():
+    while (True):
+      step_count_20d8f110_c945_4b1b_b072_a46c30520bbc = step_count_20d8f110_c945_4b1b_b072_a46c30520bbc + 1.0
+      sync()
+    end
+  end
+  run Step_Counter_Thread_0fc6d160_d77c_48fe_8d6a_3dcb471cd278()
+  global step=0
+  global i_var_1=0
+  global OnRobotPlane=p[-0.10000647088768781,-0.10000059653865119,0.29996069966442396,7.237175567861849E-5,1.4834746065157135E-6,2.356128521279985]
+  while (True):
+    $ 1 "Robot Program"
+    $ 2 "Object_1"
+    $ 3 "MoveJ"
+    $ 4 "Waypoint_2" "breakAfter"
+    movej(get_inverse_kin(p[-.186232373302, -.351629277807, .150013731570, -.369169092842, -3.077903123475, -.012899089149], qnear=[-1.768170181904928, -1.6025407950030726, -2.341233555470602, -0.7738907972918909, 1.5332965850830078, 0.04594077914953232]), a=1.3962634015954636, v=1.0471975511965976)
+    $ 5 "Wait DI[6]=HI"
+    while (get_standard_digital_in(6) == False):
+      sync()
+    end
+    $ 6 "MoveJ"
+    $ 7 "Waypoint_3" "breakAfter"
+    movej(get_inverse_kin(p[-.186219921135, -.351640101232, .279948986531, -.369269525067, -3.078022851011, -.012858301679], qnear=[-1.7674148718463343, -1.3863299528705042, -2.134418312703268, -1.196831528340475, 1.5350103378295898, 0.04423939436674118]), a=1.3962634015954636, v=1.0471975511965976)
+    $ 8 "Waypoint_4" "breakAfter"
+    movej(get_inverse_kin(p[.102583723133, -.384453526542, .279990276316, .780310034244, -3.000397953809, .011482360388], qnear=[-1.0196893850909632, -1.386294190083639, -2.134346310292379, -1.196878735219137, 1.5352740287780762, 0.04429931566119194]), a=1.3962634015954636, v=1.0471975511965976)
+    $ 9 "Waypoint_5" "breakAfter"
+    global move_thread_flag_9=0
+    thread move_thread_9():
+      enter_critical
+      move_thread_flag_9 = 1
+      movej(get_inverse_kin(p[.102538239046, -.384462318184, .149974998224, .780238047251, -3.000356832905, .011437924690], qnear=[-1.0205395857440394, -1.6026490370379847, -2.341269556676046, -0.7737110296832483, 1.533644199371338, 0.04600070044398308]), a=1.3962634015954636, v=1.0471975511965976)
+      move_thread_flag_9 = 2
+      exit_critical
+    end
+    move_thread_flag_9 = 0
+    move_thread_han_9 = run move_thread_9()
+    while (True):
+      sleep(1.0E-10)
+      if (move_thread_flag_9 > 1):
+        join move_thread_han_9
+        $ 10 "Until (reached_waypoint)"
+        $ 11 "Set DO[6]=HI:Pulse 0.01"
+        thread SinglePulse161():
+          set_standard_digital_out(6, True)
+          sleep(0.01)
+          set_standard_digital_out(6, False)
+        end
+        singlePulse161 = run SinglePulse161()
+        $ 12 "Wait: 0.5"
+        sleep(0.5)
+        break
+      end
+      sync()
+    end
+    $ 13 "Object_2"
+    $ 14 "Wait DI[6]=HI"
+    while (get_standard_digital_in(6) == False):
+      sync()
+    end
+    $ 15 "MoveJ"
+    $ 16 "Waypoint_4" "breakAfter"
+    movej(get_inverse_kin(p[.102583723133, -.384453526542, .279990276316, .780310034244, -3.000397953809, .011482360388], qnear=[-1.0196893850909632, -1.386294190083639, -2.134346310292379, -1.196878735219137, 1.5352740287780762, 0.04429931566119194]), a=1.3962634015954636, v=1.0471975511965976)
+    $ 17 "Waypoint_6" "breakAfter"
+    movej(get_inverse_kin(p[-.096129779699, -.386128384334, .279904579845, .006313546724, -3.099665580451, -.005265000492], qnear=[-1.524449650441305, -1.386437718068258, -2.134406391774313, -1.1969149748431605, 1.5352740287780762, 0.044335268437862396]), a=1.3962634015954636, v=1.0471975511965976)
+    $ 18 "Waypoint_7" "breakAfter"
+    global move_thread_flag_18=0
+    thread move_thread_18():
+      enter_critical
+      move_thread_flag_18 = 1
+      movej(get_inverse_kin(p[-.096133638866, -.386732350576, .150015574655, .006307963700, -3.099466819967, -.010890443793], qnear=[-1.525264088307516, -1.6038597265826624, -2.3385263125049036, -0.7790749708758753, 1.5336921215057373, 0.04608459025621414]), a=1.3962634015954636, v=1.0471975511965976)
+      move_thread_flag_18 = 2
+      exit_critical
+    end
+    move_thread_flag_18 = 0
+    move_thread_han_18 = run move_thread_18()
+    while (True):
+      sleep(1.0E-10)
+      if (move_thread_flag_18 > 1):
+        join move_thread_han_18
+        $ 19 "Until (reached_waypoint)"
+        $ 20 "Set DO[6]=HI:Pulse 0.01"
+        thread SinglePulse162():
+          set_standard_digital_out(6, True)
+          sleep(0.01)
+          set_standard_digital_out(6, False)
+        end
+        singlePulse162 = run SinglePulse162()
+        $ 21 "Wait: 0.5"
+        sleep(0.5)
+        break
+      end
+      sync()
+    end
+    $ 22 "Wait DI[6]=HI"
+    while (get_standard_digital_in(6) == False):
+      sync()
+    end
+    $ 23 "Waypoint_8" "breakAfter"
+    movej(get_inverse_kin(p[-.096117399137, -.386757006616, .280000120960, .006514253099, -3.099442801582, -.010923668400], qnear=[-1.5244734922992151, -1.3884037176715296, -2.131651226674215, -1.2013581434832972, 1.5352380275726318, 0.04422741010785103]), a=1.3962634015954636, v=1.0471975511965976)
+    $ 24 "Waypoint_9" "breakAfter"
+    global move_thread_flag_24=0
+    thread move_thread_24():
+      enter_critical
+      move_thread_flag_24 = 1
+      movej(get_inverse_kin(p[-.067843688801, -.740024114303, .150470705441, .030708767361, -3.100965783058, .049540294522], qnear=[-1.5077279249774378, -2.307107750569479, -1.2970197836505335, -1.0785768667804163, 1.5350942611694336, 0.044263362884521484]), a=1.3962634015954636, v=1.0471975511965976)
+      move_thread_flag_24 = 2
+      exit_critical
+    end
+    move_thread_flag_24 = 0
+    move_thread_han_24 = run move_thread_24()
+    while (True):
+      sleep(1.0E-10)
+      if (move_thread_flag_24 > 1):
+        join move_thread_han_24
+        $ 25 "Until (reached_waypoint)"
+        $ 26 "Set DO[6]=HI:Pulse 0.01"
+        thread SinglePulse163():
+          set_standard_digital_out(6, True)
+          sleep(0.01)
+          set_standard_digital_out(6, False)
+        end
+        singlePulse163 = run SinglePulse163()
+        $ 27 "Wait: 0.5"
+        sleep(0.5)
+        break
+      end
+      sync()
+    end
+    $ 28 "Wait DI[6]=HI"
+    while (get_standard_digital_in(6) == False):
+      sync()
+    end
+    $ 29 "Waypoint_1" "breakAfter"
+    movej(get_inverse_kin(p[-.186261256459, -.351667617758, .279217107346, -.369140640616, -3.077924023493, -.012881026291], qnear=[-1.767486874257223, -1.38719350496401, -2.1357482115374964, -1.1946404615985315, 1.5348905324935913, 0.04410756751894951]), a=1.3962634015954636, v=1.0471975511965976)
+    $ 30 "Set DO[5]=HI:Pulse 0.1"
+    thread SinglePulse164():
+      set_standard_digital_out(5, True)
+      sleep(0.1)
+      set_standard_digital_out(5, False)
+    end
+    singlePulse164 = run SinglePulse164()
+    $ 31 "Halt"
+    halt
+  end
+end
