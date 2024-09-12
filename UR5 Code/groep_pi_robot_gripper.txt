@@ -1,0 +1,32 @@
+ Program
+   Robot Program
+     Object_1
+       MoveJ
+         Waypoint_2
+       Wait DI[6]=HI
+       MoveJ
+         Waypoint_3
+         Waypoint_4
+         Waypoint_5
+           Until (reached_waypoint)
+             Set DO[6]=HI:Pulse 0.01
+             Wait: 0.5
+     Object_2
+       Wait DI[6]=HI
+       MoveJ
+         Waypoint_4
+         Waypoint_6
+         Waypoint_7
+           Until (reached_waypoint)
+             Set DO[6]=HI:Pulse 0.01
+             Wait: 0.5
+         Wait DI[6]=HI
+         Waypoint_8
+         Waypoint_9
+           Until (reached_waypoint)
+             Set DO[6]=HI:Pulse 0.01
+             Wait: 0.5
+         Wait DI[6]=HI
+         Waypoint_1
+         Set DO[5]=HI:Pulse 0.1
+         Halt
